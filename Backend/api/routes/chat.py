@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from db.session import get_db
-from db.models import User, SessionEmbedding, Session as SessionModel, ChatHistory
+from db.models import User, UserRole, SessionEmbedding, Session as SessionModel, ChatHistory, FacultyBatchMap
 from api.deps import get_current_active_user
 from ml_pipeline.embedding_ai import generate_embedding
 from ml_pipeline.llm_ai import ask_rag_coach
@@ -33,11 +33,19 @@ def chat_with_coach(
     # 1. Embed the query
     query_embedding = generate_embedding(request.message)
     
-    # 2. Retrieve top 3 most relevant sessions using pgvector l2_distance
-    # Join with the SessionModel to get the actual text data
-    relevant_embeddings = db.query(SessionEmbedding).filter(
-        SessionEmbedding.user_id == current_user.id
-    ).order_by(
+    # 2. RBAC Filter: Determine which embeddings the user is allowed to search
+    base_query = db.query(SessionEmbedding)
+    
+    if current_user.role == UserRole.student:
+        base_query = base_query.filter(SessionEmbedding.user_id == current_user.id)
+    elif current_user.role == UserRole.faculty:
+        assigned_batches = db.query(FacultyBatchMap.batch_id).filter(FacultyBatchMap.faculty_id == current_user.id).all()
+        batch_ids = [b[0] for b in assigned_batches]
+        base_query = base_query.filter(SessionEmbedding.batch_id.in_(batch_ids))
+    # admins and super_admins can search the whole corpus for now
+    
+    # 3. Retrieve top 3 most relevant sessions using pgvector l2_distance
+    relevant_embeddings = base_query.order_by(
         SessionEmbedding.embedding.l2_distance(query_embedding)
     ).limit(3).all()
     

@@ -7,6 +7,12 @@ import { UploadCloud, CheckCircle2, Loader2, Video } from "lucide-react";
 interface AnalysisResult {
   id: number;
   overall_score: number;
+  confidence_score: number;
+  fluency_score: number;
+  english_proficiency_score: number;
+  communication_impact_score: number;
+  vocal_engagement_score: number;
+  physical_presence_score: number;
   wpm: number;
   eye_contact_pct: number;
   grammar_mistakes: string;
@@ -142,6 +148,41 @@ export default function AnalyzeSession() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Detailed Breakdown</CardTitle>
+              <CardDescription>How your overall score was calculated</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Confidence</p>
+                  <p className="text-2xl font-bold">{result.confidence_score}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Fluency</p>
+                  <p className="text-2xl font-bold">{result.fluency_score}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">English Proficiency</p>
+                  <p className="text-2xl font-bold">{result.english_proficiency_score}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Communication Impact</p>
+                  <p className="text-2xl font-bold">{result.communication_impact_score}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Vocal Engagement</p>
+                  <p className="text-2xl font-bold">{result.vocal_engagement_score}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Physical Presence</p>
+                  <p className="text-2xl font-bold">{result.physical_presence_score}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

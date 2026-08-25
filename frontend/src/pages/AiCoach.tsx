@@ -44,7 +44,7 @@ export default function AiCoach() {
       
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: response.data.response },
+        { role: "assistant", content: response.data.reply },
       ]);
     } catch (err: any) {
       console.error(err);

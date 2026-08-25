@@ -2,7 +2,7 @@ import { Outlet, Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, LogOut, MessageSquare, Video } from "lucide-react";
+import { LayoutDashboard, LogOut, MessageSquare, Video, ShieldCheck } from "lucide-react";
 
 export default function DashboardLayout() {
   const { isAuthenticated, user, logout } = useAuth();
@@ -39,6 +39,33 @@ export default function DashboardLayout() {
               AI Coach
             </Button>
           </Link>
+
+          {user?.role === "super_admin" && (
+            <Link to="/super-admin">
+              <Button variant="ghost" className="w-full justify-start text-primary">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Super Admin Panel
+              </Button>
+            </Link>
+          )}
+
+          {user?.role === "admin" && (
+            <Link to="/admin">
+              <Button variant="ghost" className="w-full justify-start text-primary">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Course Admin Panel
+              </Button>
+            </Link>
+          )}
+
+          {user?.role === "faculty" && (
+            <Link to="/faculty">
+              <Button variant="ghost" className="w-full justify-start text-primary">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Faculty Panel
+              </Button>
+            </Link>
+          )}
         </nav>
 
         <div className="p-4 border-t border-border/50">

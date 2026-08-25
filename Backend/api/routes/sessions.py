@@ -1,7 +1,8 @@
 import os
 import tempfile
 import sys
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+import json
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 
 # Add root directory to python path so we can import ml_pipeline
@@ -15,14 +16,17 @@ from ml_pipeline.scoring_ai import calculate_scores
 from ml_pipeline.embedding_ai import generate_embedding
 
 from db.session import get_db
-from db.models import User, Session as SessionModel, SessionEmbedding
+from db.models import User, Session as SessionModel, SessionEmbedding, StudentBatchMap, FacultyBatchMap, Notification
 from api.deps import get_current_active_user
+from core.email import send_performance_report_email
 
 router = APIRouter()
 
 @router.post("/analyze")
 async def analyze_session(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    batch_id: int = Form(None),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -31,6 +35,20 @@ async def analyze_session(
     """
     if not file.filename.endswith(('.mp4', '.mov', '.avi')):
         raise HTTPException(status_code=400, detail="Invalid video format")
+        
+    # Verify student is in the batch if batch_id is provided
+    if batch_id:
+        mapping = db.query(StudentBatchMap).filter(
+            StudentBatchMap.student_id == current_user.id,
+            StudentBatchMap.batch_id == batch_id
+        ).first()
+        if not mapping:
+            raise HTTPException(status_code=403, detail="You are not assigned to this batch")
+    else:
+        # Auto-lookup if not provided, take the first one they are assigned to
+        mapping = db.query(StudentBatchMap).filter(StudentBatchMap.student_id == current_user.id).first()
+        if mapping:
+            batch_id = mapping.batch_id
         
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_video:
         content = await file.read()
@@ -50,6 +68,7 @@ async def analyze_session(
         # Create database record
         new_session = SessionModel(
             user_id=current_user.id,
+            batch_id=batch_id,
             video_filename=file.filename,
             duration_sec=audio_results.get("duration_sec", 0),
             
@@ -80,6 +99,13 @@ async def analyze_session(
             
             transcript=audio_results.get("transcript", ""),
             llm_report=feedback_report,
+            
+            confidence_score=scores.get("Confidence", 0),
+            fluency_score=scores.get("Fluency", 0),
+            english_proficiency_score=scores.get("English Proficiency", 0),
+            communication_impact_score=scores.get("Communication Impact", 0),
+            vocal_engagement_score=scores.get("Vocal Engagement", 0),
+            physical_presence_score=scores.get("Physical Presence", 0),
             overall_score=scores.get("Overall Performance", 0)
         )
         
@@ -88,21 +114,73 @@ async def analyze_session(
         db.refresh(new_session)
         
         # --- RAG Integration: Generate and save embedding ---
-        combined_text = f"Transcript:\n{audio_results.get('transcript', '')}\n\nFeedback:\n{feedback_report}"
+        metrics_dict = {
+            "Overall Performance": scores.get("Overall Performance", 0),
+            "Confidence": scores.get("Confidence", 0),
+            "Fluency": scores.get("Fluency", 0),
+            "English Proficiency": scores.get("English Proficiency", 0),
+            "Communication Impact": scores.get("Communication Impact", 0),
+            "Vocal Engagement": scores.get("Vocal Engagement", 0),
+            "Physical Presence": scores.get("Physical Presence", 0),
+            "wpm": audio_results.get("wpm", 0),
+            "fillers": audio_results.get("fillers", 0),
+            "eye_contact_pct": video_results.get("eye_contact_pct", 0),
+            "pitch_variation_hz": audio_results.get("pitch_variation_hz", 0)
+        }
+        
+        combined_text = f"Transcript:\n{audio_results.get('transcript', '')}\n\nExtracted Metrics:\n{json.dumps(metrics_dict, indent=2)}\n\nFeedback:\n{feedback_report}"
         embedding_vector = generate_embedding(combined_text)
         
         new_embedding = SessionEmbedding(
             session_id=new_session.id,
             user_id=current_user.id,
+            batch_id=batch_id,
+            content=combined_text,
             embedding=embedding_vector
         )
         db.add(new_embedding)
         db.commit()
         
+        # --- Asynchronous Email Dispatch ---
+        email_data = {
+            "overall_score": scores.get("Overall Performance", 0),
+            "confidence_score": scores.get("Confidence", 0),
+            "fluency_score": scores.get("Fluency", 0),
+            "eye_contact_pct": video_results.get("eye_contact_pct", 0),
+            "feedback": feedback_report
+        }
+        background_tasks.add_task(send_performance_report_email, current_user.email, current_user.username, email_data)
+        
+        # --- Notifications: Notify Faculty ---
+        if batch_id:
+            faculty_maps = db.query(FacultyBatchMap).filter(FacultyBatchMap.batch_id == batch_id).all()
+            for f_map in faculty_maps:
+                notification = Notification(
+                    user_id=f_map.faculty_id,
+                    title="New Session Submission",
+                    message=f"Student {current_user.username} has submitted a new session in batch {batch_id}. Score: {scores.get('Overall Performance', 0):.1f}%"
+                )
+                db.add(notification)
+            db.commit()
+        
     finally:
         os.remove(temp_video_path)
         
-    return {"message": "Analysis complete", "session_id": new_session.id}
+    return {
+        "id": new_session.id,
+        "overall_score": new_session.overall_score,
+        "confidence_score": new_session.confidence_score,
+        "fluency_score": new_session.fluency_score,
+        "english_proficiency_score": new_session.english_proficiency_score,
+        "communication_impact_score": new_session.communication_impact_score,
+        "vocal_engagement_score": new_session.vocal_engagement_score,
+        "physical_presence_score": new_session.physical_presence_score,
+        "wpm": new_session.wpm,
+        "eye_contact_pct": new_session.eye_contact_pct,
+        "grammar_mistakes": "",
+        "feedback": new_session.llm_report,
+        "transcription": new_session.transcript
+    }
 
 @router.get("/")
 def get_user_sessions(
