@@ -3,10 +3,10 @@
 import requests
 from ml_pipeline.prompt_builder import build_prompt
 
-def generate_feedback(audio_results, video_results, nlp_results):
+def generate_feedback(audio_results, video_results, nlp_results, avg_past_score=None):
     
     # Build the prompt from the dedicated file
-    prompt = build_prompt(audio_results, video_results, nlp_results)
+    prompt = build_prompt(audio_results, video_results, nlp_results, avg_past_score)
 
     # Send to Ollama
     url = "http://localhost:11434/api/generate"
@@ -75,9 +75,15 @@ def ask_rag_coach(query: str, context: str) -> str:
     }
     
     try:
-        response = requests.post(url, json=payload, timeout=30)
+        response = requests.post(url, json=payload, timeout=180)
         if response.status_code == 200:
             return response.json().get("response", "No response generated.")
+        else:
+            print(f"Ollama RAG Error: Status {response.status_code} - {response.text}")
+    except requests.exceptions.Timeout:
+        print("Ollama RAG Error: Request timed out after 180 seconds.")
+    except requests.exceptions.ConnectionError:
+        print("Ollama RAG Error: Cannot connect to Ollama at http://localhost:11434 — is it running?")
     except Exception as e:
         print(f"Ollama RAG Error: {e}")
         

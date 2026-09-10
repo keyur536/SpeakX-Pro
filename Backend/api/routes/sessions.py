@@ -33,8 +33,8 @@ async def analyze_session(
     """
     Accepts a video upload, runs the ML pipeline, and stores the session results.
     """
-    if not file.filename.endswith(('.mp4', '.mov', '.avi')):
-        raise HTTPException(status_code=400, detail="Invalid video format")
+    if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm')):
+        raise HTTPException(status_code=400, detail="Invalid video format. Must be mp4, mov, avi, or webm.")
         
     # Verify student is in the batch if batch_id is provided
     if batch_id:
@@ -61,9 +61,16 @@ async def analyze_session(
         nlp_results = analyze_nlp(audio_results.get("transcript", ""))
         video_results = analyze_video(temp_video_path)
         
+        # Calculate historical average score
+        past_sessions = db.query(SessionModel).filter(SessionModel.user_id == current_user.id).all()
+        if past_sessions:
+            avg_past_score = round(sum(s.overall_score for s in past_sessions) / len(past_sessions), 1)
+        else:
+            avg_past_score = None
+
         # Calculate scores and generate feedback
         scores = calculate_scores(audio_results, video_results, nlp_results)
-        feedback_report = generate_feedback(audio_results, video_results, nlp_results)
+        feedback_report = generate_feedback(audio_results, video_results, nlp_results, avg_past_score)
         
         # Create database record
         new_session = SessionModel(
@@ -97,7 +104,7 @@ async def analyze_session(
             total_sentences=nlp_results.get("sentence_count", 0),
             avg_sentence_length=nlp_results.get("avg_sentence_length", 0),
             
-            transcript=audio_results.get("transcript", ""),
+            transcript=None,  # Intentionally not stored in DB
             llm_report=feedback_report,
             
             confidence_score=scores.get("Confidence", 0),
@@ -179,7 +186,7 @@ async def analyze_session(
         "eye_contact_pct": new_session.eye_contact_pct,
         "grammar_mistakes": "",
         "feedback": new_session.llm_report,
-        "transcription": new_session.transcript
+        "transcription": audio_results.get("transcript", "")  # Returned once to client, not stored
     }
 
 @router.get("/")
@@ -189,3 +196,20 @@ def get_user_sessions(
 ):
     sessions = db.query(SessionModel).filter(SessionModel.user_id == current_user.id).order_by(SessionModel.session_date.desc()).all()
     return sessions
+
+@router.get("/{session_id}")
+def get_session_detail(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    # Check permissions (either it's their own session, or they are staff)
+    from db.models import UserRole
+    if session.user_id != current_user.id and current_user.role not in [UserRole.super_admin, UserRole.admin, UserRole.faculty]:
+        raise HTTPException(status_code=403, detail="Not authorized to view this session")
+        
+    return session

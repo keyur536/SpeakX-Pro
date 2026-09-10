@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import io
 import csv
+import pandas as pd
 
 from db.session import get_db
 from db.models import User, UserRole, ApprovalStatus, Course, Batch, BatchStatus, AdminCourseMap, FacultyBatchMap, StudentBatchMap
@@ -20,7 +21,8 @@ class BatchCreate(BaseModel):
     batch_code: str
     start_date: date
     end_date: date
-    enrollment_deadline: date
+    enrollment_deadline: Optional[date] = None
+    assigned_faculty_id: Optional[int] = None
 
 class BatchResponse(BaseModel):
     id: int
@@ -73,7 +75,7 @@ def create_batch(
         batch_code=batch_in.batch_code,
         start_date=batch_in.start_date,
         end_date=batch_in.end_date,
-        enrollment_deadline=batch_in.enrollment_deadline,
+        enrollment_deadline=batch_in.enrollment_deadline or batch_in.end_date,
         assigned_admin_id=current_user.id,
         created_by=current_user.id,
         status=BatchStatus.ongoing
@@ -81,6 +83,13 @@ def create_batch(
     db.add(new_batch)
     db.commit()
     db.refresh(new_batch)
+    
+    if batch_in.assigned_faculty_id:
+        faculty = db.query(User).filter(User.id == batch_in.assigned_faculty_id, User.role == UserRole.faculty).first()
+        if faculty:
+            new_map = FacultyBatchMap(faculty_id=faculty.id, batch_id=new_batch.id, assigned_by=current_user.id)
+            db.add(new_map)
+            db.commit()
     
     log_action(db, current_user.id, "create_sub_batch", "batch", new_batch.id, f"Admin created sub-batch {new_batch.batch_code}")
     return new_batch
@@ -214,3 +223,138 @@ async def bulk_import_students(
     db.commit()
     log_action(db, current_user.id, "bulk_add_students", "batch", batch_id, f"Admin bulk imported {added_count} students")
     return {"message": f"Successfully imported {added_count} students"}
+
+from sqlalchemy import func
+from db.models import Session as SessionModel
+
+@router.get("/courses")
+def get_admin_courses(
+    current_user: User = Depends(require_role([UserRole.admin])),
+    db: Session = Depends(get_db)
+):
+    course_ids = [m.course_id for m in db.query(AdminCourseMap).filter_by(admin_id=current_user.id).all()]
+    return db.query(Course).filter(Course.id.in_(course_ids)).all()
+
+@router.get("/students")
+def get_admin_students(
+    current_user: User = Depends(require_role([UserRole.admin])),
+    db: Session = Depends(get_db)
+):
+    course_ids = [m.course_id for m in db.query(AdminCourseMap).filter_by(admin_id=current_user.id).all()]
+    batch_ids = [b.id for b in db.query(Batch).filter(Batch.course_id.in_(course_ids)).all()]
+    
+    if not batch_ids:
+        return []
+        
+    students = db.query(
+        User.id,
+        User.username,
+        User.email,
+        Batch.batch_code.label("batch_name")
+    ).join(
+        StudentBatchMap, StudentBatchMap.student_id == User.id
+    ).join(
+        Batch, Batch.id == StudentBatchMap.batch_id
+    ).filter(
+        StudentBatchMap.batch_id.in_(batch_ids),
+        User.role == UserRole.student
+    ).all()
+    
+    results = []
+    for st in students:
+        session_stats = db.query(
+            func.count(SessionModel.id).label("total_sessions"),
+            func.max(SessionModel.session_date).label("last_session_date")
+        ).filter(SessionModel.user_id == st.id).first()
+        
+        latest_session = db.query(SessionModel.overall_score).filter(
+            SessionModel.user_id == st.id
+        ).order_by(SessionModel.session_date.desc()).first()
+        
+        results.append({
+            "id": st.id,
+            "username": st.username,
+            "email": st.email,
+            "batch_name": st.batch_name,
+            "total_sessions": session_stats.total_sessions or 0,
+            "last_session_date": session_stats.last_session_date,
+            "latest_overall_score": latest_session[0] if latest_session else None
+        })
+    return results
+
+@router.get("/students/{student_id}/sessions")
+def get_admin_student_sessions(
+    student_id: int,
+    current_user: User = Depends(require_role([UserRole.admin])),
+    db: Session = Depends(get_db)
+):
+    course_ids = [m.course_id for m in db.query(AdminCourseMap).filter_by(admin_id=current_user.id).all()]
+    batch_ids = [b.id for b in db.query(Batch).filter(Batch.course_id.in_(course_ids)).all()]
+    
+    mapping = db.query(StudentBatchMap).filter(
+        StudentBatchMap.student_id == student_id,
+        StudentBatchMap.batch_id.in_(batch_ids)
+    ).first()
+    
+    if not mapping:
+        raise HTTPException(status_code=403, detail="Student not in your managed courses.")
+        
+    sessions = db.query(SessionModel).filter(
+        SessionModel.user_id == student_id
+    ).order_by(SessionModel.session_date.desc()).all()
+    return sessions
+
+@router.get("/faculty")
+def get_admin_faculty(
+    current_user: User = Depends(require_role([UserRole.admin])),
+    db: Session = Depends(get_db)
+):
+    return db.query(User).filter(
+        User.role == UserRole.faculty,
+        User.status == ApprovalStatus.approved
+    ).all()
+
+@router.get("/batches/{batch_id}/students")
+def get_admin_batch_students(
+    batch_id: int,
+    current_user: User = Depends(require_role([UserRole.admin])),
+    db: Session = Depends(get_db)
+):
+    batch = db.query(Batch).filter_by(id=batch_id).first()
+    check_admin_batch_access(db, current_user.id, batch)
+    
+    students = db.query(
+        User.id,
+        User.username,
+        User.email,
+        Batch.batch_code.label("batch_name")
+    ).join(
+        StudentBatchMap, StudentBatchMap.student_id == User.id
+    ).join(
+        Batch, Batch.id == StudentBatchMap.batch_id
+    ).filter(
+        StudentBatchMap.batch_id == batch_id,
+        User.role == UserRole.student
+    ).all()
+    
+    results = []
+    for st in students:
+        session_stats = db.query(
+            func.count(SessionModel.id).label("total_sessions"),
+            func.max(SessionModel.session_date).label("last_session_date")
+        ).filter(SessionModel.user_id == st.id).first()
+        
+        latest_session = db.query(SessionModel.overall_score).filter(
+            SessionModel.user_id == st.id
+        ).order_by(SessionModel.session_date.desc()).first()
+        
+        results.append({
+            "id": st.id,
+            "username": st.username,
+            "email": st.email,
+            "batch_name": st.batch_name,
+            "total_sessions": session_stats.total_sessions or 0,
+            "last_session_date": session_stats.last_session_date,
+            "latest_overall_score": latest_session[0] if latest_session else None
+        })
+    return results

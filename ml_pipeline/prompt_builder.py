@@ -1,7 +1,7 @@
 # ml_pipeline/prompt_builder.py
 from ml_pipeline.scoring_ai import calculate_scores
 
-def build_prompt(audio_results, video_results, nlp_results):
+def build_prompt(audio_results, video_results, nlp_results, avg_past_score=None):
         scores = calculate_scores(audio_results, video_results, nlp_results)
 
         wpm = audio_results.get("wpm", 0)
@@ -116,7 +116,13 @@ def build_prompt(audio_results, video_results, nlp_results):
     - Tomorrow's Action Plan MUST directly address the weaknesses identified.
     - Do not simply repeat the metrics.
     - Explain why the metrics matter.
+    - If Historical Average Score is provided, briefly comment on whether their current Overall Performance is improving or declining compared to their historical average.
     
+    ====================================================
+    HISTORICAL CONTEXT
+    ====================================================
+    User's Average Score from all past sessions: {avg_past_score if avg_past_score is not None else "First session (no history yet)"}
+
     ====================================================
     CALCULATED SCORES (DO NOT INVENT THESE, USE EXACTLY AS GIVEN)
     ====================================================

@@ -1,52 +1,80 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Layers, Calendar } from "lucide-react";
-import { NotificationBell } from "@/components/NotificationBell";
-import Attendance from "./Attendance";
+import { useState, useEffect } from "react";
+import { StudentRosterTable } from "@/components/shared/StudentRosterTable";
+import { EntityCombobox } from "@/components/shared/EntityCombobox";
+import { StatCard } from "@/components/shared/StatCard";
+import { Users, BookOpen } from "lucide-react";
+import axios from "axios";
 
 export default function FacultyDashboard() {
+  const [selectedBatchId, setSelectedBatchId] = useState<number | undefined>();
+  const [stats, setStats] = useState({ batches: 0, totalStudents: 0 });
+
+  useEffect(() => {
+    // Quick fetch to get stats (in a real app, maybe a dedicated stats endpoint)
+    const fetchStats = async () => {
+      try {
+        const [batchesRes, studentsRes] = await Promise.all([
+          axios.get("http://localhost:8000/api/v1/faculty/batches", { withCredentials: true }),
+          axios.get("http://localhost:8000/api/v1/faculty/students", { withCredentials: true })
+        ]);
+        setStats({
+          batches: batchesRes.data.length,
+          totalStudents: studentsRes.data.length
+        });
+      } catch (err) {
+        console.error("Failed to load stats", err);
+      }
+    };
+    fetchStats();
+  }, []);
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Faculty Dashboard</h2>
-        <div className="flex items-center space-x-2">
-          <NotificationBell />
-        </div>
+    <div className="space-y-10 max-w-7xl mx-auto">
+      <div>
+        <h1 className="font-display text-4xl font-bold tracking-tight text-foreground mb-2">Batch Overview</h1>
+        <p className="font-sans text-muted-foreground">Monitor student performance and session history.</p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="attendance">Attendance</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <StatCard
+          title="Assigned Batches"
+          value={stats.batches}
+          icon={<BookOpen className="w-5 h-5" />}
+          accentColor="amber"
+        />
+        <StatCard
+          title="Total Students"
+          value={stats.totalStudents}
+          icon={<Users className="w-5 h-5" />}
+        />
+      </div>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">My Assigned Batches</CardTitle>
-                <Layers className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">1</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Upcoming Sessions</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-500">Live</div>
-              </CardContent>
-            </Card>
+      <div className="bg-card border border-border rounded-[1rem] p-6 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h2 className="font-sans font-semibold text-xl">Student Roster</h2>
+          {/* 
+            Since our backend route `/api/v1/faculty/students` doesn't currently accept a ?batch_id filter,
+            we will just show all students. In a full implementation, we'd pass ?batch_id=selectedBatchId 
+            to the fetchUrl below. 
+          */}
+          <div className="w-full sm:w-[300px]">
+             {/* Just visually showing the combobox as requested, even if filter isn't hooked to backend yet */}
+            <EntityCombobox
+              endpoint="/api/v1/faculty/batches"
+              label="Batch"
+              displayKey="code"
+              valueKey="id"
+              value={selectedBatchId}
+              onSelect={(id) => setSelectedBatchId(id)}
+            />
           </div>
-        </TabsContent>
+        </div>
 
-        <TabsContent value="attendance">
-          <Attendance />
-        </TabsContent>
-      </Tabs>
+        <StudentRosterTable 
+          fetchUrl="/api/v1/faculty/students"
+          sessionFetchUrl="/api/v1/faculty/students"
+        />
+      </div>
     </div>
   );
 }

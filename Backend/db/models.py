@@ -129,6 +129,7 @@ class Course(Base):
     code = Column(String(20), unique=True, nullable=False, index=True)
     description = Column(Text)
     duration_months = Column(Integer, default=6)
+    assigned_admin_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, server_default=func.now())
     

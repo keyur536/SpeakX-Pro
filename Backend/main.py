@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from api.routes import auth, sessions, chat, super_admin, admin, notifications, attendance, certificates
+from api.routes import auth, sessions, chat, super_admin, admin, faculty, notifications, attendance, certificates
 from core.limiter import limiter
 
 app = FastAPI(
@@ -42,6 +42,7 @@ app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"]
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(super_admin.router, prefix="/api/v1/super-admin", tags=["Super Admin"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(faculty.router, prefix="/api/v1/faculty", tags=["Faculty"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(attendance.router, prefix="/api/v1/attendance", tags=["Attendance"])
 app.include_router(certificates.router, prefix="/api/v1/certificates", tags=["Certificates"])
