@@ -1,28 +1,26 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Activity, Clock, Target, TrendingUp } from "lucide-react";
-
-interface SessionData {
-  id: number;
-  session_date: string;
-  overall_score: number;
-  wpm: number;
-  eye_contact_pct: number;
-}
+import { Link } from "react-router-dom";
+import { ScoreReadout } from "@/components/shared/ScoreReadout";
+import { StatCard } from "@/components/shared/StatCard";
+import { Button } from "@/components/ui/button";
+import { Video, Calendar, Activity, Play } from "lucide-react";
+import { format } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/api/v1/sessions/");
+        const response = await axios.get("http://127.0.0.1:8000/api/v1/sessions/", {
+          withCredentials: true,
+        });
         setSessions(response.data);
       } catch (error) {
-        console.error("Failed to fetch sessions", error);
+        console.error("Error fetching sessions:", error);
       } finally {
         setLoading(false);
       }
@@ -30,126 +28,121 @@ export default function Dashboard() {
     fetchSessions();
   }, []);
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
-  }
+  const latestSession = sessions[0];
+  const avgScore = sessions.length > 0 
+    ? Math.round(sessions.reduce((acc, s) => acc + s.overall_score, 0) / sessions.length) 
+    : 0;
 
-  if (sessions.length === 0) {
+  if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center">
-          <Activity className="w-12 h-12 text-primary" />
+      <div className="space-y-8 animate-pulse">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">No sessions yet</h2>
-        <p className="text-muted-foreground max-w-sm">
-          You haven't recorded any speaking sessions. Head over to the New Session tab to get started!
-        </p>
+        <Skeleton className="h-64" />
       </div>
     );
   }
 
-  const avgScore = Math.round(sessions.reduce((acc, curr) => acc + curr.overall_score, 0) / sessions.length);
-  const avgWpm = Math.round(sessions.reduce((acc, curr) => acc + curr.wpm, 0) / sessions.length);
-  const chartData = sessions.map((s, index) => ({
-    name: `Session ${index + 1}`,
-    score: s.overall_score
-  }));
+  if (sessions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+        <div className="w-24 h-24 bg-card border border-border rounded-full flex items-center justify-center mb-4 shadow-xl">
+          <Video className="w-10 h-10 text-muted-foreground" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="font-display text-3xl font-bold text-foreground">Welcome to SpeakX-Pro</h2>
+          <p className="font-sans text-muted-foreground max-w-md mx-auto">
+            You haven't recorded any sessions yet. Start your first recording to get AI-powered feedback on your communication skills.
+          </p>
+        </div>
+        <Link to="/analyze">
+          <Button size="lg" className="h-14 px-8 font-sans text-lg">
+            <Play className="mr-2 h-5 w-5" /> Start Recording
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Score</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{avgScore}/100</div>
-            <p className="text-xs text-muted-foreground">Across all sessions</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{sessions.length}</div>
-            <p className="text-xs text-muted-foreground">Analyzed successfully</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Speaking Rate</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{avgWpm} WPM</div>
-            <p className="text-xs text-muted-foreground">Words per minute</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Growth</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">
-              {sessions.length > 1 
-                ? `${Math.round(sessions[sessions.length-1].overall_score - sessions[0].overall_score)} pts` 
-                : "N/A"}
-            </div>
-            <p className="text-xs text-muted-foreground">Since first session</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-10 max-w-6xl mx-auto">
+      <div>
+        <h1 className="font-display text-4xl font-bold tracking-tight text-foreground mb-2">My Dashboard</h1>
+        <p className="font-sans text-muted-foreground">Track your communication progress and review past recordings.</p>
       </div>
 
-      {/* Chart */}
-      <Card className="col-span-4">
-        <CardHeader>
-          <CardTitle>Performance Trend</CardTitle>
-        </CardHeader>
-        <CardContent className="pl-2">
-          <div className="h-[300px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `${value}`}
-                  domain={[0, 100]}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
-                  itemStyle={{ color: "hsl(var(--foreground))" }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="score"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: "hsl(var(--primary))" }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard
+          title="Latest Score"
+          value={Math.round(latestSession.overall_score)}
+          trend="Overall"
+          icon={<Activity className="w-5 h-5" />}
+          accentColor="amber"
+        />
+        <StatCard
+          title="Average Score"
+          value={avgScore}
+          icon={<Activity className="w-5 h-5" />}
+        />
+        <StatCard
+          title="Total Sessions"
+          value={sessions.length}
+          icon={<Video className="w-5 h-5" />}
+        />
+      </div>
+
+      <div className="bg-card border border-border rounded-[1rem] p-8 shadow-sm">
+        <h2 className="font-sans font-semibold text-xl mb-6">Latest Performance Overview</h2>
+        <ScoreReadout
+          overall={latestSession.overall_score}
+          pillars={[
+            { label: "Confidence", value: latestSession.confidence_score },
+            { label: "Fluency", value: latestSession.fluency_score },
+            { label: "English", value: latestSession.english_proficiency_score },
+            { label: "Impact", value: latestSession.communication_impact_score },
+            { label: "Engagement", value: latestSession.vocal_engagement_score },
+            { label: "Presence", value: latestSession.physical_presence_score },
+          ]}
+        />
+      </div>
+
+      <div>
+        <h2 className="font-sans font-semibold text-xl mb-6">Session History</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {sessions.map((session, i) => (
+            <Link key={session.id} to={`/session/${session.id}`} className="group relative overflow-hidden bg-card hover:bg-secondary/30 hover:border-primary/50 transition-colors border border-border rounded-[1rem] p-5 shadow-sm flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-sans font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+                    Session {sessions.length - i}
+                  </h3>
+                  <div className="flex items-center text-xs text-muted-foreground font-mono mt-1">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    {format(new Date(session.session_date), "PPP")}
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-full border-4 border-primary/20 flex items-center justify-center bg-card shadow-sm">
+                  <span className="font-mono font-bold text-foreground">{Math.round(session.overall_score)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs font-mono text-muted-foreground pt-4 border-t border-border mt-auto">
+                <div className="flex items-center gap-3">
+                  <span>WPM: <span className="text-foreground">{session.wpm}</span></span>
+                  <span>Eye Contact: <span className="text-foreground">{session.eye_contact_pct}%</span></span>
+                </div>
+                <span className="text-primary font-sans font-medium flex items-center group-hover:translate-x-1 transition-transform">
+                  View Report &rarr;
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

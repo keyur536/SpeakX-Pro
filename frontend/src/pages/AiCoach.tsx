@@ -1,136 +1,122 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Send, User, Bot, Loader2, MessageSquare } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Send, Bot, User as UserIcon } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-interface Message {
+interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
 
 export default function AiCoach() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Hi! I am your AI Speaking Coach. Ask me anything about your past video performances, like 'Did I say any filler words in my last session?' or 'How can I improve my eye contact?'",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const handleSend = async (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim()) return;
 
-    const userMsg = input.trim();
+    const userMessage = input.trim();
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
 
     try {
-      const response = await axios.post("http://127.0.0.1:8000/api/v1/chat/", {
-        message: userMsg
-      });
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/v1/chat/",
+        { message: userMessage },
+        { withCredentials: true }
+      );
       
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: response.data.response },
+        { role: "assistant", content: response.data.reply },
       ]);
-    } catch (err: any) {
-      console.error(err);
-      setMessages((prev) => [
-        ...prev,
-        { 
-          role: "assistant", 
-          content: err.response?.data?.detail || "Sorry, I ran into an error generating a response." 
-        },
-      ]);
+    } catch (err) {
+      toast.error("Failed to connect to AI Coach");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-8rem)]">
+    <div className="h-[calc(100vh-8rem)] flex flex-col max-w-4xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold tracking-tight flex items-center">
-          <MessageSquare className="w-8 h-8 mr-3 text-primary" />
-          AI Coach Chat
-        </h2>
-        <p className="text-muted-foreground mt-2">
-          Chat with an AI that has perfect memory of all your past speaking sessions.
-        </p>
+        <h1 className="font-display text-4xl font-bold tracking-tight text-foreground mb-2">AI Coach</h1>
+        <p className="font-sans text-muted-foreground">Ask questions about your performance, progress, and feedback.</p>
       </div>
 
-      <Card className="flex-1 flex flex-col overflow-hidden border-border/50 shadow-md">
-        {/* Chat History */}
-        <div 
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-muted/10"
-        >
-          {messages.map((msg, i) => (
-            <div 
-              key={i} 
-              className={`flex items-start gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-              }`}>
-                {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+      <div className="flex-1 bg-card border border-border rounded-[1rem] shadow-sm flex flex-col overflow-hidden">
+        <ScrollArea className="flex-1 p-6">
+          <div className="space-y-6">
+            {messages.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50 py-20">
+                <Bot className="w-16 h-16 text-primary" />
+                <p className="font-sans text-lg">Hello! Ask me about your communication progress.</p>
               </div>
-              
-              <div className={`max-w-[80%] rounded-2xl p-4 ${
-                msg.role === 'user' 
-                  ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-                  : 'bg-card border border-border shadow-sm rounded-tl-sm'
-              }`}>
-                <p className="whitespace-pre-wrap leading-relaxed">
+            )}
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={cn(
+                  "flex items-start gap-4 max-w-[85%]",
+                  msg.role === "user" ? "ml-auto flex-row-reverse" : ""
+                )}
+              >
+                <div className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border",
+                  msg.role === "user" ? "bg-accent/20 border-accent/30 text-accent" : "bg-primary/20 border-primary/30 text-primary"
+                )}>
+                  {msg.role === "user" ? <UserIcon className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+                </div>
+                <div
+                  className={cn(
+                    "p-4 rounded-[1rem] font-sans leading-relaxed whitespace-pre-wrap",
+                    msg.role === "user" 
+                      ? "bg-accent text-accent-foreground rounded-tr-sm" 
+                      : "bg-secondary text-secondary-foreground rounded-tl-sm"
+                  )}
+                >
                   {msg.content}
-                </p>
+                </div>
               </div>
-            </div>
-          ))}
-          
-          {loading && (
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-secondary text-secondary-foreground">
-                <Bot className="w-5 h-5" />
+            ))}
+            {loading && (
+              <div className="flex items-start gap-4 max-w-[85%]">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border bg-primary/20 border-primary/30 text-primary">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <div className="p-4 rounded-[1rem] rounded-tl-sm bg-secondary text-secondary-foreground flex items-center gap-2">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
               </div>
-              <div className="bg-card border border-border shadow-sm rounded-2xl rounded-tl-sm p-4 flex items-center space-x-2 text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Thinking...</span>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </ScrollArea>
 
-        {/* Input Area */}
-        <div className="p-4 bg-card border-t border-border">
-          <form onSubmit={handleSend} className="flex gap-2">
-            <Input 
+        <div className="p-4 border-t border-border bg-background">
+          <form onSubmit={sendMessage} className="flex gap-4">
+            <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about your eye contact, filler words, or overall growth..."
-              className="flex-1 bg-background"
+              placeholder="Ask about your communication scores..."
               disabled={loading}
+              className="flex-1 bg-card border-border font-sans h-12"
             />
-            <Button type="submit" disabled={!input.trim() || loading} className="px-6">
+            <Button type="submit" disabled={loading || !input.trim()} className="h-12 px-6">
               <Send className="w-4 h-4 mr-2" />
               Send
             </Button>
           </form>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

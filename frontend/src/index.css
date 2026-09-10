@@ -4,48 +4,34 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 252 80% 65%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 252 80% 65%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
+    --background: 230 13% 9%;
+    --foreground: 44 23% 91%;
+    --card: 228 15% 13%;
+    --card-foreground: 44 23% 91%;
+    --popover: 230 15% 16%;
+    --popover-foreground: 44 23% 91%;
+    --primary: 36 79% 57%;
+    --primary-foreground: 26 45% 12%;
+    --secondary: 230 15% 16%;
+    --secondary-foreground: 44 23% 91%;
+    --muted: 230 15% 16%;
+    --muted-foreground: 235 7% 63%;
+    --accent: 179 69% 55%;
+    --accent-foreground: 180 60% 10%;
+    --destructive: 4 72% 59%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
-    --radius: 0.5rem;
-  }
+    --border: 228 14% 21%;
+    --input: 230 15% 16%;
+    --ring: 179 69% 55%;
+    --radius: 0.625rem;
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 252 80% 65%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 252 80% 65%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --amber-deep: 34 73% 45%;
+    --amber-tint: 39 34% 15%;
+    --teal-deep: 179 64% 34%;
+    --teal-tint: 180 33% 12%;
+    --sage: 114 29% 65%;
+    --sage-tint: 114 30% 12%;
+    --radius-card: 1rem;
   }
 }
 

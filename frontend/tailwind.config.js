@@ -16,7 +16,18 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        display: ['Fraunces', 'Georgia', 'serif'],
+        sans: ['Manrope', '-apple-system', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
       colors: {
+        'amber-deep': 'hsl(var(--amber-deep))',
+        'amber-tint': 'hsl(var(--amber-tint))',
+        'teal-deep': 'hsl(var(--teal-deep))',
+        'teal-tint': 'hsl(var(--teal-tint))',
+        'sage': 'hsl(var(--sage))',
+        'sage-tint': 'hsl(var(--sage-tint))',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
